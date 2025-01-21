@@ -1,56 +1,54 @@
 #include <iostream>
-#include <string>
-#include <list>
+#include <deque>
 #include <thread>
+#include <mutex>
 #include <atomic>
 
-std::atomic_bool ready {};
-std::atomic_uint64_t g_count{};
-std::atomic_flag winner {};
+using namespace std::chrono_literals;
 
-constexpr uint64_t max_count {1'000'000};
-constexpr int max_threads {100};
+constexpr size_t num_items {10};
+constexpr auto delay_time {250ms};
 
-std::string make_commas(const uint64_t& num) {
-    auto s = std::to_string(num);
-    for (auto l = static_cast<int>(s.length())-3; l > 0; l -= 3){
-        s.insert(l, ",");
-    }
-    return s;
+std::mutex p_mtx {};
+std::mutex c_mtx {};
+std::deque<size_t> q{};
+std::atomic_flag finished{};
+
+void sleep_ms(const auto& delay){
+    std::this_thread::sleep_for(delay);
 }
 
-void sleep_ms(auto ms){
-    using std::this_thread::sleep_for;
-    using std::chrono::milliseconds;
-    sleep_for(milliseconds(ms));
+void producer(){
+    for(size_t i{}; i < num_items; ++i){
+        sleep_ms(delay_time);
+        std::cout << "push " << i << " on the queue" << std::endl;
+        std::lock_guard<std::mutex> l{p_mtx};
+        q.push_back(i);
+    }
+    std::lock_guard<std::mutex> l{p_mtx};
+    finished.test_and_set();
 }
 
-void countem(int id){
-    while(!ready) std::this_thread::yield;
-    for(auto i=0; i < max_count; ++i){
-        if (winner.test()) return;
-        ++g_count;
-    }
-    if (!winner.test_and_set()) {
-        std::cout << "thread " << id << " won!" << std::endl;
-        winner.notify_all();
+void consumer() {
+    while(!finished.test()){
+        std::lock_guard<std::mutex> l{c_mtx};
+        while(!q.empty()) {
+            std::cout << "pop " << q.front() << " from the queue" << std::endl;
+            q.pop_front();
+        }
     }
 }
 
 int main(){
-    std::list<std::thread> swarm{};
-    std::cout << "swarm " << max_threads << std::endl;
-    for(auto i = 0; i < max_threads; ++i){
-        swarm.emplace_back(countem, i);
-    }
+    std::thread t1{producer};
+    std::thread t2{consumer};
+    t1.join();
+    t2.join();
+    std::cout << "finished!" << std::endl;
 
-    sleep_ms(25);
-    std::cout << "Go!" << std::endl;
-    ready = true;
-
-    for(auto& t : swarm) t.join();
-    std::cout << "global count: " << make_commas(g_count) << std::endl;
 
     return 0;
+
 }
+
 
