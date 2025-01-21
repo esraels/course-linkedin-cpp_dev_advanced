@@ -1,61 +1,129 @@
-#include <format>
-#include <list>
-#include <chrono>
-#include <future>
-#include <iostream>
+#include <string_view>
 #include <thread>
+#include <thread>
+#include <future>
+#include <mutex>
+#include <list>
+#include <optional>
+#include <iostream>
 
-using std::cout;
-using std::endl;
-using std::chrono::steady_clock;
-using dur_t = std::chrono::duration<double>;
+using namespace std;
 
-struct process_result {
-    dur_t dur{};
-    uint64_t count{};
+
+std::mutex animal_mutex {};
+
+class Animal {
+    using friend_t = std::list<Animal>;
+    std::string_view s_name {"unk"};
+    friend_t l_friends{};
+public:
+    Animal() = delete;
+    Animal(const std::string_view n) : s_name(n) {}
+
+    bool operator==(const Animal& o) const {
+        return s_name.data() == o.s_name.data();
+    }
+
+    bool add_friend(Animal& o) {
+        cout << "add_friend " << s_name << " -> " << o.s_name;
+        if(*this == o) return false;
+
+        std::lock_guard<std::mutex> l{animal_mutex};
+        if(!is_friend(o)) l_friends.emplace_back(o);
+        if(!o.is_friend(*this)) o.l_friends.emplace_back(*this);
+        
+        return true;
+    }
+
+    bool delete_friend(Animal& o) noexcept {
+        cout << "delete_friend " << s_name << " <-> " << o.s_name << endl;
+        if(*this == o) return false;
+
+        std::lock_guard<std::mutex> l{animal_mutex};
+        if(auto it = find_friend(o); it) l_friends.erase(it.value());
+        if(auto it = o.find_friend(*this); it) o.l_friends.erase(it.value());
+
+        return true;
+
+    }
+
+    bool is_friend(const Animal& o) const {
+        for(const auto& a : l_friends) {
+            if(a == o) return true;
+        }
+        return false;
+    }
+
+    std::optional<friend_t::iterator> find_friend(const Animal& o) noexcept {
+        for(auto it = l_friends.begin(); it != l_friends.end(); ++it){
+            if(*it == o) return it;
+        }
+        return {};
+    }
+
+    void pfriends() const noexcept {
+        std::lock_guard<std::mutex> l{animal_mutex};
+        auto n_animals = l_friends.size();
+        cout << s_name << " friends: " << endl;
+        if(!n_animals) cout << "none" << endl;
+        else {
+            for(const auto& n: l_friends) {
+                cout << n.s_name;
+                if(--n_animals) cout << ", ";
+            }
+        }
+        cout << endl;
+    }
+
 };
 
-void count_primes(const uint64_t& targetNum, std::promise<process_result> pval) {
-    process_result result{};
-    constexpr auto isprime = [](uint64_t n){
-        for(uint64_t i{2}; i < n/2; ++i){
-            if(n%i == 0) return false;
-        }
-        return true;
-    };
-    uint64_t start{2};
-    uint64_t end{targetNum};
-    auto time_start = steady_clock::now();
-    for(auto i = start; i <= end; ++i){
-        if(isprime(i)) ++result.count;
-    }
-    result.dur = steady_clock::now() - time_start;
-    pval.set_value(result);
-}
 
 int main(){
-    constexpr uint64_t max_prime {0x1FFFF};
-    constexpr size_t num_threads{15};
-    std::list<std::future<process_result>> listThreads;
-    auto time_start = steady_clock::now();
-    cout << "start parallel counting on number of primes:" << endl;
-    for(auto i = num_threads; i; --i){
-        //listThreads.emplace_back(std::async(count_primes, max_prime));
-        std::promise<process_result> promise_obj{};
-        auto future_obj = promise_obj.get_future();
-        listThreads.emplace_back(std::move(future_obj));
-        std::thread t(count_primes, max_prime, std::move(promise_obj));
-        t.detach();
-    }
 
-    for(auto& res : listThreads){
-        static auto i = 0;
-        auto [dur, count] = res.get();
-        cout << "thread " << ++i << ": found " << count << " primes in " << dur.count() << "s" << endl;
-    }
+    auto cat1 = std::make_unique<Animal>("Felix");
+    auto tiger1 = std::make_unique<Animal>("Hobbes");
+    auto dog1 = std::make_unique<Animal>("Astro");
+    auto rabbit1 = std::make_unique<Animal>("Bugs");
 
-    dur_t main_duration{steady_clock::now() - time_start};
-    cout << "total duration: " << main_duration.count() << "s" << endl;
+    cout << "add friends" << endl;
+    auto a1 = std::async([&]{ cat1->add_friend(*tiger1); });
+    auto a2 = std::async([&]{ cat1->add_friend(*rabbit1); });
+    auto a3 = std::async([&]{ rabbit1->add_friend(*dog1); });
+    auto a4 = std::async([&]{ rabbit1->add_friend(*tiger1); });
+
+    a1.wait();
+    a2.wait();
+    a3.wait();
+    a4.wait();
+
+
+    cout << "print animals" << endl;
+    auto p1 = std::async([&]{ cat1->pfriends(); });
+    auto p2 = std::async([&]{ tiger1->pfriends(); });
+    auto p3 = std::async([&]{ dog1->pfriends(); });
+    auto p4 = std::async([&]{ rabbit1->pfriends(); });
+
+    p1.wait();
+    p2.wait();
+    p3.wait();
+    p4.wait();
+
+    cout << "delete Felix/Bugs friendship" << endl;
+    auto a5 = std::async([&]{ cat1->delete_friend(*rabbit1); });
+
+    cout << "print animals" << endl;
+    p1 = std::async([&]{ cat1->pfriends(); });
+    p2 = std::async([&]{ tiger1->pfriends(); });
+    p3 = std::async([&]{ dog1->pfriends(); });
+    p4 = std::async([&]{ rabbit1->pfriends(); });
+
+
+    p1.wait();
+    p2.wait();
+    p3.wait();
+    p4.wait();
+
+    cout << "end of main" << endl;
 
     return 0;
 }
