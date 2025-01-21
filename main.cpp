@@ -15,7 +15,7 @@ struct process_result {
     uint64_t count{};
 };
 
-process_result count_primes(const uint64_t& targetNum) {
+void count_primes(const uint64_t& targetNum, std::promise<process_result> pval) {
     process_result result{};
     constexpr auto isprime = [](uint64_t n){
         for(uint64_t i{2}; i < n/2; ++i){
@@ -30,7 +30,7 @@ process_result count_primes(const uint64_t& targetNum) {
         if(isprime(i)) ++result.count;
     }
     result.dur = steady_clock::now() - time_start;
-    return result;
+    pval.set_value(result);
 }
 
 int main(){
@@ -40,7 +40,12 @@ int main(){
     auto time_start = steady_clock::now();
     cout << "start parallel counting on number of primes:" << endl;
     for(auto i = num_threads; i; --i){
-        listThreads.emplace_back(std::async(count_primes, max_prime));
+        //listThreads.emplace_back(std::async(count_primes, max_prime));
+        std::promise<process_result> promise_obj{};
+        auto future_obj = promise_obj.get_future();
+        listThreads.emplace_back(std::move(future_obj));
+        std::thread t(count_primes, max_prime, std::move(promise_obj));
+        t.detach();
     }
 
     for(auto& res : listThreads){
