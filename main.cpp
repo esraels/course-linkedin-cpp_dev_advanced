@@ -8,55 +8,49 @@
 using std::cout;
 using std::endl;
 using std::chrono::steady_clock;
-using secs = std::chrono::duration<double>;
+using dur_t = std::chrono::duration<double>;
 
-struct prime_time {
-    secs dur{};
+struct process_result {
+    dur_t dur{};
     uint64_t count{};
 };
 
-prime_time count_primes(const uint64_t& max) {
-    prime_time ret{};
+process_result count_primes(const uint64_t& targetNum) {
+    process_result result{};
     constexpr auto isprime = [](uint64_t n){
-        for(uint64_t i {2}; i < n/2; ++i){
+        for(uint64_t i{2}; i < n/2; ++i){
             if(n%i == 0) return false;
         }
         return true;
     };
     uint64_t start{2};
-    uint64_t end{max};
-    auto time_thread_start = steady_clock::now();
-    if(max == 1000) {
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+    uint64_t end{targetNum};
+    auto time_start = steady_clock::now();
+    for(auto i = start; i <= end; ++i){
+        if(isprime(i)) ++result.count;
     }
-    else for(auto i = start; i <= end; ++i){
-        if(isprime(i)) ++ret.count;
-    }
-    ret.dur = steady_clock::now() - time_thread_start;
-    return ret;
+    result.dur = steady_clock::now() - time_start;
+    return result;
 }
 
 int main(){
     constexpr uint64_t max_prime {0x1FFFF};
     constexpr size_t num_threads{15};
-    std::list<std::future<prime_time>> swarm;
-
-    cout << "start parallel primes" << endl;
+    std::list<std::future<process_result>> listThreads;
     auto time_start = steady_clock::now();
+    cout << "start parallel counting on number of primes:" << endl;
     for(auto i = num_threads; i; --i){
-        uint64_t targetNum = max_prime;
-        if(i == 5) targetNum = 1000;
-        swarm.emplace_back(std::async(count_primes, targetNum));
+        listThreads.emplace_back(std::async(count_primes, max_prime));
     }
 
-    for(auto& f : swarm){
+    for(auto& res : listThreads){
         static auto i = 0;
-        auto [dur, count] = f.get();
+        auto [dur, count] = res.get();
         cout << "thread " << ++i << ": found " << count << " primes in " << dur.count() << "s" << endl;
     }
 
-    secs dur_total{steady_clock::now() - time_start};
-    cout << "total duration: " << dur_total.count() << "s" << endl;
+    dur_t main_duration{steady_clock::now() - time_start};
+    cout << "total duration: " << main_duration.count() << "s" << endl;
 
-
+    return 0;
 }
