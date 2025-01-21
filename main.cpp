@@ -26,7 +26,10 @@ prime_time count_primes(const uint64_t& max) {
     uint64_t start{2};
     uint64_t end{max};
     auto time_thread_start = steady_clock::now();
-    for(auto i = start; i <= end; ++i){
+    if(max == 1000) {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+    }
+    else for(auto i = start; i <= end; ++i){
         if(isprime(i)) ++ret.count;
     }
     ret.dur = steady_clock::now() - time_thread_start;
@@ -42,6 +45,7 @@ int main(){
     auto time_start = steady_clock::now();
     for(auto i = num_threads; i; --i){
         uint64_t targetNum = max_prime;
+        if(i == 5) targetNum = 1000;
         swarm.emplace_back(std::async(count_primes, targetNum));
     }
 
