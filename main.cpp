@@ -1,43 +1,58 @@
 #include <format>
-#include <iostream>
+#include <list>
 #include <chrono>
+#include <future>
+#include <iostream>
 #include <thread>
 
-using std::this_thread::sleep_for;
+using std::cout;
+using std::endl;
+using std::chrono::steady_clock;
+using secs = std::chrono::duration<double>;
 
-using namespace std::chrono_literals;
+struct prime_time {
+    secs dur{};
+    uint64_t count{};
+};
 
-void wait(int ms){
-    sleep_for(std::chrono::milliseconds(ms));
+prime_time count_primes(const uint64_t& max) {
+    prime_time ret{};
+    constexpr auto isprime = [](uint64_t n){
+        for(uint64_t i {2}; i < n/2; ++i){
+            if(n%i == 0) return false;
+        }
+        return true;
+    };
+    uint64_t start{2};
+    uint64_t end{max};
+    auto time_thread_start = steady_clock::now();
+    for(auto i = start; i <= end; ++i){
+        if(isprime(i)) ++ret.count;
+    }
+    ret.dur = steady_clock::now() - time_thread_start;
+    return ret;
 }
 
-template<typename T>
-void wait(T dur){
-    sleep_for(dur);
-}
+int main(){
+    constexpr uint64_t max_prime {0x1FFFF};
+    constexpr size_t num_threads{15};
+    std::list<std::future<prime_time>> swarm;
 
-void funcThread(int id, int loopTime) {
-
-    for(int a = 0; a < 5; a++){
-        wait(loopTime);
-        std::cout << "thread " << id << ": slept for " << loopTime << "ms" << std::endl;
+    cout << "start parallel primes" << endl;
+    auto time_start = steady_clock::now();
+    for(auto i = num_threads; i; --i){
+        uint64_t targetNum = max_prime;
+        swarm.emplace_back(std::async(count_primes, targetNum));
     }
 
-    std::cout << "thread " << id << ": ended" << std::endl;
+    for(auto& f : swarm){
+        static auto i = 0;
+        auto [dur, count] = f.get();
+        cout << "thread " << ++i << ": found " << count << " primes in " << dur.count() << "s" << endl;
+    }
 
-}
+    secs dur_total{steady_clock::now() - time_start};
+    cout << "total duration: " << dur_total.count() << "s" << endl;
 
-int main() {
-    std::thread t1(funcThread, 1, 100);
-    std::thread t2(funcThread, 2, 200);
 
-    t1.detach();
-    t2.detach();
-
-    std::cout << "main() will sleep for 2 seconds. " << std::endl;
-    wait(2000ms);
-
-    std::cout << "End main()" << std::endl;
-
-    return 0;
 }
