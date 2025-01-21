@@ -1,32 +1,36 @@
-#include <format>
 #include <chrono>
 #include <thread>
 #include <iostream>
 
 using namespace std;
 
-using std::chrono::steady_clock;
-using std::chrono::duration;
-using std::this_thread::sleep_for;
-using std::this_thread::sleep_until;
+void sleepms(const unsigned ms){
+    using millis = std::chrono::milliseconds;
+    std::this_thread::sleep_for(millis(ms));
+}
 
-using namespace std::chrono_literals;
+void thread_func(const int n){
+    cout << "This is t" << n << endl;
+    auto slp_dur = 100*n;
+
+    for(auto i = 0; i < 5; ++i){
+        sleepms(slp_dur);
+        cout << "t" << n << "(" << slp_dur << "): loop " << (i+1) << endl;
+    }
+    cout << "Finishing t" << n << endl;
+
+}
 
 int main(){
+    thread t1(thread_func, 1);
+    thread t2(thread_func, 2);
+    t1.detach();
+    t2.detach();
 
-    cout << "let's wait a bit.." << endl;
+    cout << "main() sleep 2 sec" << endl;
+    sleepms(2000);
 
-    auto timeStart = steady_clock::now();
-    cout << "sleep for 2.5 seconds" << endl;
-    sleep_for(2s + 500ms);
-
-    cout << "sleep for 3 seconds" << endl;
-    sleep_until(steady_clock::now() + 3s);
-
-    duration<double> dur = steady_clock::now() - timeStart;
-    cout << "Total duration: " << dur.count() << endl;
-
-    cout << "Hello meow" << endl;
+    cout << "end of main()" << endl;
 
     return 0;
 }
