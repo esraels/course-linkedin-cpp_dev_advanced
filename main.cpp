@@ -1,12 +1,25 @@
+#include <format>
 #include <iostream>
 #include <chrono>
 #include <thread>
 
+using std::this_thread::sleep_for;
+
+using namespace std::chrono_literals;
+
+void wait(int ms){
+    sleep_for(std::chrono::milliseconds(ms));
+}
+
+template<typename T>
+void wait(T dur){
+    sleep_for(dur);
+}
+
 void funcThread(int id, int loopTime) {
 
     for(int a = 0; a < 5; a++){
-        auto sleeptime = std::chrono::milliseconds(loopTime);
-        std::this_thread::sleep_for(sleeptime);
+        wait(loopTime);
         std::cout << "thread " << id << ": slept for " << loopTime << "ms" << std::endl;
     }
 
@@ -21,13 +34,10 @@ int main() {
     t1.detach();
     t2.detach();
 
-
     std::cout << "main() will sleep for 2 seconds. " << std::endl;
+    wait(2000ms);
 
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    
     std::cout << "End main()" << std::endl;
-    
 
     return 0;
 }
