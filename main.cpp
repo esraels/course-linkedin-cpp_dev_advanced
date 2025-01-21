@@ -1,36 +1,33 @@
+#include <iostream>
 #include <chrono>
 #include <thread>
-#include <iostream>
 
-using namespace std;
+void funcThread(int id, int loopTime) {
 
-void sleepms(const unsigned ms){
-    using millis = std::chrono::milliseconds;
-    std::this_thread::sleep_for(millis(ms));
-}
-
-void thread_func(const int n){
-    cout << "This is t" << n << endl;
-    auto slp_dur = 100*n;
-
-    for(auto i = 0; i < 5; ++i){
-        sleepms(slp_dur);
-        cout << "t" << n << "(" << slp_dur << "): loop " << (i+1) << endl;
+    for(int a = 0; a < 5; a++){
+        auto sleeptime = std::chrono::milliseconds(loopTime);
+        std::this_thread::sleep_for(sleeptime);
+        std::cout << "thread " << id << ": slept for " << loopTime << "ms" << std::endl;
     }
-    cout << "Finishing t" << n << endl;
+
+    std::cout << "thread " << id << ": ended" << std::endl;
 
 }
 
-int main(){
-    thread t1(thread_func, 1);
-    thread t2(thread_func, 2);
+int main() {
+    std::thread t1(funcThread, 1, 100);
+    std::thread t2(funcThread, 2, 200);
+
     t1.detach();
     t2.detach();
 
-    cout << "main() sleep 2 sec" << endl;
-    sleepms(2000);
 
-    cout << "end of main()" << endl;
+    std::cout << "main() will sleep for 2 seconds. " << std::endl;
+
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    
+    std::cout << "End main()" << std::endl;
+    
 
     return 0;
 }
