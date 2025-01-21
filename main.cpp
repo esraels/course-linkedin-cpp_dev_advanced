@@ -31,6 +31,7 @@ void producer(){
 
 void consumer() {
     while(!finished.test()){
+        sleep_ms(delay_time * 3);
         std::lock_guard<std::mutex> l{c_mtx};
         while(!q.empty()) {
             std::cout << "pop " << q.front() << " from the queue" << std::endl;
